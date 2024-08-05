@@ -1,12 +1,7 @@
 #pragma once
 #include <memory>
 #include <utility>
-#include<vector>
 #include "AStar.hpp"
-
-//////////////////////////////////////////////////////////////////////
-// definition
-//////////////////////////////////////////////////////////////////////
 
 struct Conflict {
     int agent1, agent2;
@@ -61,14 +56,10 @@ class CBS {
           cnt(0) {}
     void splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node);
     void search();
-
     const std::shared_ptr<CTNode>& getSolutionNode() { return solutionNode; }
     void onNewNode();
 };
 
-//////////////////////////////////////////////////////////////////////
-// implementation
-//////////////////////////////////////////////////////////////////////
 inline void CBS::onNewNode() {
     cnt++;
     if (cnt % 100 == 0) std::cout << "already checked " << cnt << "nodes\n";
@@ -90,8 +81,7 @@ inline Conflict CTNode::getFirstConflict() {
         for (std::vector<GridPoint> pathOfOneAgent : solution) {
             agent2++;
             if (i < pathOfOneAgent.size()) {
-                if (std::find(pointsAtTimei.begin(), pointsAtTimei.end(),
-                              pathOfOneAgent[i]) != pointsAtTimei.end()) {
+                if (std::find(pointsAtTimei.begin(), pointsAtTimei.end(), pathOfOneAgent[i]) != pointsAtTimei.end()) {
                     int agent1;
                     for (agent1 = 0; agent1 < pointsAtTimei.size(); agent1++) {
                         if (pointsAtTimei[agent1] == pathOfOneAgent[i]) break;
@@ -106,8 +96,7 @@ inline Conflict CTNode::getFirstConflict() {
 }
 
 inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
-    // split current node into two nodes
-    // each has a new set of constraints
+
     int agent1, agent2;
     agent1 = con.agent1;
     agent2 = con.agent2;
@@ -124,28 +113,12 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
             new1.push_back(c);
         else if (c.agent == agent2)
             new2.push_back(c);
-    // std::cout << "constraints for agent " << agent1 << "\n";
-    for (Constraint cc : new1) {
-        std::cout << "agent " << agent1 << " point: " << cc.point.x << ","
-                  << cc.point.y << "time: " << cc.constraintTimeStamp << "\n";
-    }
-    std::cout << "constraints for agent " << agent2 << "\n";
-    for (Constraint cc : new2) {
-        std::cout << "agent " << agent2 << " point: " << cc.point.x << ","
-                  << cc.point.y << "time: " << cc.constraintTimeStamp << "\n";
-    }
 
     if (std::find(new1.begin(), new1.end(), c1) == new1.end()) {
-        std::cout << "adding constraint "
-                  << "agent: " << agent1 << " point: " << c1.point.x << ","
-                  << c1.point.y << " time: " << c1.constraintTimeStamp << "\n";
         new1.push_back(c1);
-        auto newNode1 = std::make_shared<CTNode>(node->cost, new1,
-                                                 node->solution, node->costs);
+        auto newNode1 = std::make_shared<CTNode>(node->cost, new1, node->solution, node->costs);
         AStar lowLevelSearchObj1(dimX, dimY, obstacles, new1);
-
-        newNode1->solution[agent1] =
-            lowLevelSearchObj1.search(starts[agent1], goals[agent1]);
+        newNode1->solution[agent1] = lowLevelSearchObj1.search(starts[agent1], goals[agent1]);
         Cost cost1 = lowLevelSearchObj1.getFinalCost();
         newNode1->cost -= newNode1->costs[agent1];
         newNode1->cost += cost1;
@@ -154,8 +127,6 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
         node->leftChild = std::move(newNode1);
     }
     if (std::find(new2.begin(), new2.end(), c2) == new2.end()) {
-        std::cout << "adding constraint "
-                  << "agent: " << agent2 << " point: " << c2.point << " time: " << c2.constraintTimeStamp << "\n";
         new2.push_back(c2);
         auto newNode2 = std::make_shared<CTNode>(node->cost, new2,
                                                  node->solution, node->costs);
@@ -185,10 +156,6 @@ inline void CBS::search() {
         AStar lowLevelSearchObj(dimX, dimY, obstacles, cc);
         pp = lowLevelSearchObj.search(starts[i], goals[i]);
         if (pp.empty()) {
-            // no path found initially, just return
-            std::cout << "no path found for start : " << starts[i].x << ","
-                      << starts[i].y << " goal: " << goals[i].x << ","
-                      << goals[i].y;
             return;
         }
         root->cost += lowLevelSearchObj.getFinalCost();
@@ -197,8 +164,6 @@ inline void CBS::search() {
     }
 
     std::shared_ptr<CTNode>& currentCTNode = root;
-    // search for all the possibilities
-    // this guarantees optimality
     std::queue<std::shared_ptr<CTNode>> openSet;
     openSet.push(root);
 
@@ -209,12 +174,6 @@ inline void CBS::search() {
         onNewNode();
         // test whether finished
         conflict = currentCTNode->getFirstConflict();
-        // output conflict
-        std::cout << "spliting on conflict \nagent1: " << conflict.agent1
-                  << "\nagent2: " << conflict.agent2
-                  << "\npoint: " << conflict.point
-                  << "\n"
-                  << conflict.timeStamp << "\n";
         if (conflict.agent1 == -1 || conflict.agent2 == -1) {
             // no conflict is found
             solutionNode = currentCTNode;

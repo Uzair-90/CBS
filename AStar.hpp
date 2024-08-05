@@ -4,17 +4,19 @@
 #include <queue>
 #include <vector>
 
-//////////////////////////////////////////////////////////////////////
-// definition
-//////////////////////////////////////////////////////////////////////
-
 using Cost = int;
+
+enum Direction {
+    UP, DOWN, LEFT, RIGHT, STAY
+};
 
 struct GridPoint {
     int x{0};
     int y{0};
-    GridPoint() : x{0}, y{0} {}
+    Direction direction{UP};
+    GridPoint() : x{0}, y{0}, direction{UP} {}
     GridPoint(int xx, int yy) : x{xx}, y{yy} {}
+    GridPoint(int xx, int yy, Direction direc) : x{xx}, y{yy}, direction{direc} {}
     bool operator==(const GridPoint &p) const { return p.x == x && p.y == y; }
 };
 
@@ -32,6 +34,10 @@ struct Node {
         : point(p), g(gg), f(ff), parent(pa), timeStamp(0) {}
     Node(GridPoint p, Cost gg, Cost ff, GridPoint pa, int t)
         : point(p), g(gg), f(ff), parent(pa), timeStamp(t) {}
+    Node(GridPoint p, Cost gg, Cost ff,GridPoint pa ,int t, Direction new_direction)
+        : point(p), g(gg),f(ff), parent(pa), timeStamp(t) {
+            point.direction = new_direction;
+        }
 };
 // used to sort Nodes, very slow, but easy to use
 struct greater {
@@ -75,38 +81,101 @@ class AStar {
     static Cost getCost(GridPoint p1, GridPoint p2);
     std::vector<GridPoint> getAdjacentGridPoints(GridPoint &p);
     static Cost heuristic(GridPoint s, GridPoint g);
+    Cost getDirectionCost(Direction old, Direction New){
+        return (old != New)? 1: 0;
+    }
     Node getParent(GridPoint p);
     Cost getFinalCost() const;
-    int gettime();
+    int Rotationcost(Direction form, Direction to);
 };
 
-///////////////////////////////////////////////////////////////////
-// implementation
-///////////////////////////////////////////////////////////////////
+
+inline int AStar::Rotationcost(Direction from, Direction to){
+    return (from == to) ? 0 : 1;
+}
+
+
+
+// inline std::vector<GridPoint> AStar::search(GridPoint &start, GridPoint &goal) {
+//     std::vector<GridPoint> path;
+//     Cost h = heuristic(start, goal);
+//     Node startNode(start, 0, h, start, 0);
+//     openSet.push_back(startNode);
+
+//     while (!openSet.empty()) {
+//         std::sort(openSet.begin(), openSet.end(), greater());
+//         Node currentNode = openSet.back();
+//         openSet.pop_back();
+//         closedSet.push_back(currentNode);
+//         timeStamp = currentNode.timeStamp;
+
+//         if (currentNode.point == goal) {
+//             finalCost = currentNode.f;
+//             Node n = currentNode;
+//             while (!(n.point == start)) {
+//                 path.push_back(n.point);
+//                 n = getParent(n.point);
+//             }
+//             path.push_back(start);
+//             std::reverse(path.begin(), path.end());
+//             return path;
+//         }
+
+//         std::vector<GridPoint> childrenGridPoints = getAdjacentGridPoints(currentNode.point);
+
+//         for (const GridPoint &childGridPoint : childrenGridPoints) {
+//             bool inClosedSet = std::find_if(closedSet.begin(), closedSet.end(),
+//                 [&childGridPoint](const Node &n) { return n.point == childGridPoint; }) != closedSet.end();
+
+//             if (inClosedSet) continue;
+
+//             // Calculate cost including direction change
+//             int directionCost = getDirectionCost(currentNode.point.direction, childGridPoint.direction);
+//             Cost newg = currentNode.g + getCost(childGridPoint, currentNode.point) + directionCost;
+//             Cost newf = newg + heuristic(childGridPoint, goal);
+//             Node child(childGridPoint, newg, newf, currentNode.point, currentNode.timeStamp + 1);
+
+//             // Check if the node with the same point but different direction is in openSet
+//             auto it = std::find_if(openSet.begin(), openSet.end(),
+//                 [&childGridPoint](const Node &n) { return n.point.x == childGridPoint.x && n.point.y == childGridPoint.y; });
+
+//             if (it != openSet.end()) {
+//                 if (child.f < it->f) {
+//                     it->g = child.g;
+//                     it->f = child.f;
+//                     it->timeStamp = child.timeStamp;
+//                     it->parent = child.parent;
+//                     it->point.direction = child.point.direction; // Update direction as well
+//                 }
+//             } else {
+//                 openSet.push_back(child);
+//             }
+//         }
+//     }
+
+//     return path;
+// }
+
+
+
+
 inline std::vector<GridPoint> AStar::search(GridPoint &start, GridPoint &goal) {
-    std::cout << "searching with constraints: \n";
-    for (Constraint c : constraints) {
-        std::cout << "agent: " << c.agent << " point: " << c.point<< " time: " << c.constraintTimeStamp << "\n";
-    }
     std::vector<GridPoint> path;
     Cost h = heuristic(start, goal);
-    Node startNode = Node(start, 0, h, start, 0);
+    Node startNode(start, 0, h, start, 0);
     openSet.push_back(startNode);
-    // begin search
-    // int cnt = 0;
+
     while (!openSet.empty()) {
         std::sort(openSet.begin(), openSet.end(), greater());
         Node currentNode = openSet.back();
-        openSet.pop_back();  // delete the smallest element
-        // push into closedSet
+        openSet.pop_back();
         closedSet.push_back(currentNode);
         timeStamp = currentNode.timeStamp;
-        if (currentNode.point.x == goal.x && currentNode.point.y == goal.y) {
-            // goal point found
+
+        if (currentNode.point == goal) {
             finalCost = currentNode.f;
             Node n = currentNode;
-            while (n.point.x != start.x || n.point.y != start.y) {
-                if (n.parent == n.point) break;
+            while (!(n.point == start)) {
                 path.push_back(n.point);
                 n = getParent(n.point);
             }
@@ -114,61 +183,86 @@ inline std::vector<GridPoint> AStar::search(GridPoint &start, GridPoint &goal) {
             std::reverse(path.begin(), path.end());
             return path;
         }
-        std::vector<GridPoint> childrenGridPoints =
-            getAdjacentGridPoints(currentNode.point);
-        std::vector<GridPoint> closedGridPoints;
-        closedGridPoints.resize(closedSet.size());
-        std::transform(closedSet.begin(), closedSet.end(),
-                       closedGridPoints.begin(),
-                       [](Node n) { return n.point; });
-        for (GridPoint childGridPoint : childrenGridPoints) {
-            auto it = std::find(closedGridPoints.begin(),
-                                closedGridPoints.end(), childGridPoint);
-            // if point is in closed GridPoints
-            if (it != closedGridPoints.end()) continue;
-            Cost newg =
-                currentNode.g + getCost(childGridPoint, currentNode.point);
-            Cost newf = newg + heuristic(childGridPoint, goal);
-            Node child = Node(childGridPoint, newg, newf, currentNode.point,
-                              currentNode.timeStamp + 1);
-            bool flag = true;
 
-            for (Node n : openSet) {
-                if (n.point == childGridPoint) {
-                    flag = false;
-                    if (child.f < n.f) {
-                        n.g = child.g;
-                        n.f = child.f;
-                        n.timeStamp = child.timeStamp;
-                        n.parent = child.parent;
-                    }
+        std::vector<GridPoint> childrenGridPoints = getAdjacentGridPoints(currentNode.point);
+
+        for (const GridPoint &childGridPoint : childrenGridPoints) {
+            // Check if the childGridPoint is in closedSet
+            bool inClosedSet = std::find_if(closedSet.begin(), closedSet.end(),
+                [&childGridPoint](const Node &n) { return n.point == childGridPoint; }) != closedSet.end();
+
+            if (inClosedSet) continue;
+
+            // Calculate cost including direction change
+            int directionCost = getDirectionCost(currentNode.point.direction, childGridPoint.direction);
+            Cost newg = currentNode.g + getCost(childGridPoint, currentNode.point) + directionCost;
+            Cost newf = newg + heuristic(childGridPoint, goal);
+            Node child(childGridPoint, newg, newf, currentNode.point, currentNode.timeStamp + 1);
+
+            // Check if the node with the same point but different direction is in openSet
+            auto it = std::find_if(openSet.begin(), openSet.end(),
+                [&childGridPoint](const Node &n) { return n.point.x == childGridPoint.x && n.point.y == childGridPoint.y; });
+
+            if (it != openSet.end()) {
+                // Node with same coordinates but potentially different direction
+                if (child.f < it->f) {
+                    it->g = child.g;
+                    it->f = child.f;
+                    it->timeStamp = child.timeStamp;
+                    it->parent = child.parent;
+                    it->point.direction = child.point.direction; // Update direction as well
                 }
-            }
-            if (flag) {
-                openSet.push_back(child);
+            } else {
+                // Handle direction changes separately
+                if (directionCost > 0) {
+                    // Add the node with updated direction to openSet
+                    Node directionChangedNode(childGridPoint, newg, newf, currentNode.point, currentNode.timeStamp + 1);
+                    openSet.push_back(directionChangedNode);
+                } else {
+                    // Standard node addition
+                    openSet.push_back(child);
+                }
             }
         }
     }
+
     return path;
 }
 
+
+
+
+
+
+
+
+
 inline std::vector<GridPoint> AStar::getAdjacentGridPoints(GridPoint &p) {
     std::vector<GridPoint> adjGridPoints;
-    std::vector<std::pair<int, int>> moves{
-        {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {0, 0}};
+    std::vector<std::pair<int, int>> moves{ {0, 1}, {1, 0}, {0, -1}, {-1, 0}, {0, 0} };
+    std::vector<Direction> directions = {UP, RIGHT, DOWN, LEFT, STAY};
+    unsigned int i = 0;
     for (const auto &m : moves) {
+        Direction new_direction = directions[i];
+
+        if((p.direction == LEFT && new_direction == RIGHT) || (p.direction == RIGHT && new_direction == LEFT) ){
+            new_direction = p.direction;
+        }
+
+        if((p.direction == UP && new_direction == DOWN) || (p.direction == DOWN && new_direction == UP)){
+            new_direction = p.direction;
+        }
+
         int dx = m.first, dy = m.second;
         int x = dx + p.x;
         int y = dy + p.y;
         if (x >= 0 && x < dimX && y >= 0 && y < dimY) {
-            GridPoint newPoint(x, y);
-//            std::cout << "new point: " << newPoint << "\n";
-            if (std::find(obstacles.begin(), obstacles.end(), newPoint) ==
-                obstacles.end()) {
+            GridPoint newPoint(x, y, new_direction);
+
+            if (std::find(obstacles.begin(), obstacles.end(), newPoint) == obstacles.end()) {
                 bool flag = true;
                 for (Constraint c : constraints)
-                    if (c.point == newPoint &&
-                        c.constraintTimeStamp == timeStamp + 1)
+                    if (c.point == newPoint && c.constraintTimeStamp == timeStamp + 1)
                     // not allowed to go to newPoint
                     {
                         std::cout << "constrained, not adding point "
@@ -179,15 +273,10 @@ inline std::vector<GridPoint> AStar::getAdjacentGridPoints(GridPoint &p) {
                 if (flag) adjGridPoints.push_back(newPoint);
             }
         }
+
+        ++i;
     }
-    if (!constraints.empty()) {
-        std::cout << "at timestamp " << timeStamp << " current point: " << p
-                  << ", adding points: \n";
-        for (auto pp : adjGridPoints) {
-            std::cout << pp << " ";
-        }
-        std::cout << "\n";
-    }
+
     return adjGridPoints;
 }
 
@@ -208,7 +297,6 @@ inline Node AStar::getParent(GridPoint p) {
         }
     }
     if (newNode.f == -1) {
-        std::cout << "node not found";
         return newNode;
     }
     for (Node n : closedSet) {
@@ -216,7 +304,6 @@ inline Node AStar::getParent(GridPoint p) {
             return n;
         }
     }
-    std::cout << "node not found";
     return newNode;
 }
 
