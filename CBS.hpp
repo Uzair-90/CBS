@@ -1,6 +1,9 @@
 #pragma once
 #include <memory>
 #include <utility>
+#include <unordered_set>
+#include<unordered_map>
+#include<bits/stdc++.h>
 #include "AStar.hpp"
 
 struct Conflict {
@@ -18,6 +21,7 @@ struct CTNode {
     std::vector<Constraint> constraints;
     std::vector<std::vector<GridPoint>> solution;
     Conflict getFirstConflict();
+    bool checkForEdgeConflict(const std::vector<GridPoint>& pathOfOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent, int i);
     std::shared_ptr<CTNode> leftChild, rightChild, parent;
     CTNode() = default;
     CTNode(Cost c, std::vector<Constraint> &con,
@@ -30,6 +34,13 @@ struct CTNode {
           rightChild(nullptr),
           parent(nullptr) {}
 };
+
+struct CompareCTNode {
+    bool operator()(const std::shared_ptr<CTNode>& lhs, const std::shared_ptr<CTNode>& rhs) const {
+        return lhs->cost > rhs->cost; // Min-heap (lower cost has higher priority)
+    }
+};
+
 
 class CBS {
    private:
@@ -60,10 +71,23 @@ class CBS {
     void onNewNode();
 };
 
+
 inline void CBS::onNewNode() {
     cnt++;
-    if (cnt % 100 == 0) std::cout << "already checked " << cnt << "nodes\n";
+    if (cnt % 100 == 0) std::cout << "Checked " << cnt << " nodes.\n";
 }
+
+inline bool CTNode::checkForEdgeConflict(const std::vector<GridPoint>& pathOfOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent, int i) {
+    // Ensure indices are within bounds
+    if (i + 1 >= pathOfOneAgent.size() || i + 1 >= pathOfAnotherAgent.size()) {
+        return false;
+    }
+
+    // Check if agents swap positions at time i
+    return ((pathOfOneAgent[i] == pathOfAnotherAgent[i + 1] && pathOfOneAgent[i + 1] == pathOfAnotherAgent[i]));
+    // && pathOfOneAgent[i] != pathOfOneAgent[i + 1]); // Avoid self-loop
+}
+
 
 inline Conflict CTNode::getFirstConflict() {
     Conflict con(-1, -1, GridPoint(-1, -1), -1);
@@ -72,31 +96,47 @@ inline Conflict CTNode::getFirstConflict() {
     std::transform(
         solution.begin(), solution.end(), lengths.begin(),
         [](const std::vector<GridPoint> &path) { return path.size(); });
-    int longestLength = *std::max_element(lengths.begin(), lengths.end());
+
     std::vector<GridPoint> pointsAtTimei;
-    for (int i = 0; i < longestLength; i++) {
+    int longestLength = *std::max_element(lengths.begin(), lengths.end());
+
+        for (int i = 0; i < longestLength; i++) {
         // i is the timeStamp
         pointsAtTimei.clear();
         int agent2 = -1;
+
         for (std::vector<GridPoint> pathOfOneAgent : solution) {
-            agent2++;
-            if (i < pathOfOneAgent.size()) {
-                if (std::find(pointsAtTimei.begin(), pointsAtTimei.end(), pathOfOneAgent[i]) != pointsAtTimei.end()) {
-                    int agent1;
-                    for (agent1 = 0; agent1 < pointsAtTimei.size(); agent1++) {
-                        if (pointsAtTimei[agent1] == pathOfOneAgent[i]) break;
+                agent2++;
+                if (i < pathOfOneAgent.size()) {
+                    if (std::find(pointsAtTimei.begin(), pointsAtTimei.end(),
+                                pathOfOneAgent[i]) != pointsAtTimei.end()) {
+                        int agent1;
+                        for (agent1 = 0; agent1 < pointsAtTimei.size(); agent1++) {
+                            if (pointsAtTimei[agent1] == pathOfOneAgent[i]) break;
+                        }
+                        return {agent1, agent2, pathOfOneAgent[i], i};
                     }
-                    return {agent1, agent2, pathOfOneAgent[i], i};
+                    pointsAtTimei.push_back(pathOfOneAgent[i]);
                 }
-                pointsAtTimei.push_back(pathOfOneAgent[i]);
             }
         }
-    }
+
+        for (int i = 0; i < longestLength - 1; ++i) { // Check up to the second last position
+            for (int agent1 = 0; agent1 < solution.size(); ++agent1) {
+                for (int agent2 = agent1 + 1; agent2 < solution.size(); ++agent2) {
+                    if (checkForEdgeConflict(solution[agent1], solution[agent2], i)) {
+                        return Conflict(agent1, agent2, solution[agent1][i], i);
+                    }
+                }
+            }
+        }
+
     return con;
 }
 
 inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
-
+    // split current node into two nodes
+    // each has a new set of constraints
     int agent1, agent2;
     agent1 = con.agent1;
     agent2 = con.agent2;
@@ -115,9 +155,11 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
             new2.push_back(c);
 
     if (std::find(new1.begin(), new1.end(), c1) == new1.end()) {
+
         new1.push_back(c1);
-        auto newNode1 = std::make_shared<CTNode>(node->cost, new1, node->solution, node->costs);
+        auto newNode1 = std::make_shared<CTNode>(node->cost, new1,node->solution, node->costs);
         AStar lowLevelSearchObj1(dimX, dimY, obstacles, new1);
+
         newNode1->solution[agent1] = lowLevelSearchObj1.search(starts[agent1], goals[agent1]);
         Cost cost1 = lowLevelSearchObj1.getFinalCost();
         newNode1->cost -= newNode1->costs[agent1];
@@ -127,12 +169,11 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
         node->leftChild = std::move(newNode1);
     }
     if (std::find(new2.begin(), new2.end(), c2) == new2.end()) {
+
         new2.push_back(c2);
-        auto newNode2 = std::make_shared<CTNode>(node->cost, new2,
-                                                 node->solution, node->costs);
+        auto newNode2 = std::make_shared<CTNode>(node->cost, new2, node->solution, node->costs);
         AStar lowLevelSearchObj2(dimX, dimY, obstacles, newNode2->constraints);
-        newNode2->solution[agent2] =
-            lowLevelSearchObj2.search(starts[agent2], goals[agent2]);
+        newNode2->solution[agent2] = lowLevelSearchObj2.search(starts[agent2], goals[agent2]);
         Cost cost2 = lowLevelSearchObj2.getFinalCost();
         newNode2->cost -= newNode2->costs[agent2];
         newNode2->cost += cost2;
@@ -141,21 +182,20 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
     }
 }
 
-inline void CBS::search() {
+void CBS::search() {
     root = std::make_shared<CTNode>();
     root->solution.resize(numberOfAgents);
     root->constraints.resize(numberOfAgents);
-    // container for single agent constraints
+
     std::vector<Constraint> cc;
-    // container for single agent astar search result
     std::vector<GridPoint> pp;
-    // search for each agent, to initialize root ctnode
+
     root->costs.resize(numberOfAgents);
     for (int i = 0; i < numberOfAgents; i++) {
-        // do low level search
         AStar lowLevelSearchObj(dimX, dimY, obstacles, cc);
         pp = lowLevelSearchObj.search(starts[i], goals[i]);
         if (pp.empty()) {
+            std::cout << "No solution returned from A*.\n";
             return;
         }
         root->cost += lowLevelSearchObj.getFinalCost();
@@ -163,24 +203,24 @@ inline void CBS::search() {
         root->solution[i] = pp;
     }
 
-    std::shared_ptr<CTNode>& currentCTNode = root;
-    std::queue<std::shared_ptr<CTNode>> openSet;
+    std::priority_queue<std::shared_ptr<CTNode>, std::vector<std::shared_ptr<CTNode>>, CompareCTNode> openSet;
     openSet.push(root);
 
     Conflict conflict(-1, -1, GridPoint(-1, -1), -1);
     while (!openSet.empty()) {
-        currentCTNode = std::move(openSet.front());
+        std::shared_ptr<CTNode> currentCTNode = openSet.top();
         openSet.pop();
         onNewNode();
-        // test whether finished
+
         conflict = currentCTNode->getFirstConflict();
+
         if (conflict.agent1 == -1 || conflict.agent2 == -1) {
-            // no conflict is found
             solutionNode = currentCTNode;
             return;
         }
-        // found a conflict, split the node according to the conflict
+
         splitOnConflict(conflict, currentCTNode);
+
         if (currentCTNode->leftChild != nullptr)
             openSet.push(currentCTNode->leftChild);
         if (currentCTNode->rightChild != nullptr)

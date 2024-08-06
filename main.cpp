@@ -3,24 +3,26 @@
 
 int main() {
   // Define problem parameters
-  int num_agents = 3; // Number of agents
+  int num_agents = 4; // Number of agents
   int dim_x = 3; // Grid dimension (X)
   int dim_y = 3; // Grid dimension (Y)
 
   std::vector<GridPoint> obstacles;
-  obstacles.push_back(GridPoint(2, 2));
+  obstacles.push_back(GridPoint(-1, -1));
 
   std::vector<GridPoint> starts;
+  starts.push_back(GridPoint(2, 2));
+  starts.push_back(GridPoint(2, 1));
+  starts.push_back(GridPoint(0, 2));
   starts.push_back(GridPoint(1, 1));
-  starts.push_back(GridPoint(1, 2));
-  starts.push_back(GridPoint(2, 0));
-  // starts.push_back(GridPoint(0, 1));
+ // starts.push_back(GridPoint(0, 0));
 
   std::vector<GridPoint> goals;
+  goals.push_back(GridPoint(1, 0));
+  goals.push_back(GridPoint(1, 2));
   goals.push_back(GridPoint(0, 1));
-  goals.push_back(GridPoint(0, 0));
-  goals.push_back(GridPoint(1, 1));
-  // goals.push_back(GridPoint(2, 1));
+  goals.push_back(GridPoint(0, 2));
+ // goals.push_back(GridPoint(2, 1));
 
   // Create a CBS instance
   CBS cbs(num_agents, dim_x, dim_y, obstacles, starts, goals);
@@ -37,7 +39,7 @@ int main() {
     for (int agent = 0; agent < num_agents; ++agent) {
       std::cout << "Agent " << agent + 1 << " solution: ";
       for (const GridPoint& point : solutionNode->solution[agent]) {
-        std::cout << "(" << point.x << ", " << point.y <<", "<<point.direction<< ") -> ";
+        std::cout << "(" << point.x << ", " << point.y<<", "<<point.direction<<") -> ";
       }
       std::cout << "Goal\n";
     }
