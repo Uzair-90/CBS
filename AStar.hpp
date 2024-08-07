@@ -22,7 +22,7 @@ struct GridPoint {
     GridPoint(int xx, int yy, Direction dir) : x{xx}, y{yy}, direction{dir} {}
 
     size_t operator()(const GridPoint& pointToHash) const noexcept {
-        size_t hash = pointToHash.x + 10 * pointToHash.y;
+        size_t hash = pointToHash.x + 10 * pointToHash.y + 10 *pointToHash.direction;
         return hash;
     }
 
@@ -235,7 +235,7 @@ inline std::vector<GridPoint> AStar::getAdjacentGridPoints(GridPoint& currentPoi
                 bool flag = true;
                 // Constraint check
                 for (Constraint c : constraints) {
-                    if (c.point == newPoint && c.constraintTimeStamp == timeStamp + 1) {
+                    if ((c.point.x == newPoint.x && c.point.y == newPoint.y) && c.constraintTimeStamp == timeStamp + 1) {
                         flag = false;
                         break;
                     }

@@ -73,11 +73,6 @@ class CBS {
     void onNewNode();
 };
 
-//struct to check agent state
-
-struct AgentState{
-    bool reachedGoal;
-};
 
 //will give a msg for checking 100 nodes.
 inline void CBS::onNewNode() {
@@ -92,7 +87,7 @@ inline bool CTNode::checkForEdgeConflict(const std::vector<GridPoint>& pathOfOne
     }
 
     // Check if agents swap positions at time i
-    return ((pathOfOneAgent[i] == pathOfAnotherAgent[i + 1] && pathOfOneAgent[i + 1] == pathOfAnotherAgent[i]));
+    return (((pathOfOneAgent[i].x == pathOfAnotherAgent[i + 1].x) && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y ) && (pathOfOneAgent[i + 1].x == pathOfAnotherAgent[i].x) && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y)));
     // && pathOfOneAgent[i] != pathOfOneAgent[i + 1]); // Avoid self-loop
 }
 
@@ -116,13 +111,19 @@ inline Conflict CTNode::getFirstConflict() {
         for (std::vector<GridPoint> pathOfOneAgent : solution) {
                 agent2++;
                 if (i < pathOfOneAgent.size()) {
-                    if (std::find(pointsAtTimei.begin(), pointsAtTimei.end(),
-                                pathOfOneAgent[i]) != pointsAtTimei.end()) {
-                        int agent1;
-                        for (agent1 = 0; agent1 < pointsAtTimei.size(); agent1++) {
-                            if (pointsAtTimei[agent1] == pathOfOneAgent[i]) break;
+                    auto it=pointsAtTimei.begin();
+                    for(; it != pointsAtTimei.end(); it++) if(it->x == pathOfOneAgent[i].x && it->y == pathOfOneAgent[i].y) break;
+                    if(it == pointsAtTimei.end()){
+                        // no conflict
+                        std::cout << "NO CON" << std::endl;
+                        std::cout << "C " << pathOfOneAgent[i].x << " " << pathOfOneAgent[i].y << std::endl;
+                        for(auto tt:pointsAtTimei){
+                            std::cout << tt.x << " " << tt.y << " " << tt.direction << std::endl;
                         }
-                        return {agent1, agent2, pathOfOneAgent[i], i};
+                    }else{
+                        int agent = it - pointsAtTimei.begin();
+                        std::cout << it->x << " " << it->y << std::endl;
+                        return {agent, agent2, *it, i};
                     }
                     pointsAtTimei.push_back(pathOfOneAgent[i]);
                 }
@@ -198,7 +199,6 @@ void CBS::search() {
 
     std::vector<Constraint> cc;
     std::vector<GridPoint> pp;
-    std::vector<AgentState> agentStates(numberOfAgents,{false});
 
     root->costs.resize(numberOfAgents);
     for (int i = 0; i < numberOfAgents; i++) {
@@ -223,16 +223,6 @@ void CBS::search() {
         onNewNode();
 
         conflict = currentCTNode->getFirstConflict();
-
-        for(int agentIndex = 0; agentIndex < numberOfAgents; ++agentIndex){
-            if(conflict.agent1 == -1 || conflict.agent2 == -1) continue;
-
-            const GridPoint& goal = goals[agentIndex];
-            if(currentCTNode->solution[agentIndex].back() == goal && !agentStates[agentIndex].reachedGoal){
-                agentStates[agentIndex].reachedGoal = true;
-                obstacles.push_back(goal);
-            }
-        }
 
         if (conflict.agent1 == -1 || conflict.agent2 == -1) {
             solutionNode = currentCTNode;
