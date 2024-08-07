@@ -6,6 +6,7 @@
 #include<bits/stdc++.h>
 #include "AStar.hpp"
 
+//structure to catch conflict
 struct Conflict {
     int agent1, agent2;
     GridPoint point;
@@ -35,6 +36,7 @@ struct CTNode {
           parent(nullptr) {}
 };
 
+//comparator for CTNode 
 struct CompareCTNode {
     bool operator()(const std::shared_ptr<CTNode>& lhs, const std::shared_ptr<CTNode>& rhs) const {
         return lhs->cost > rhs->cost; // Min-heap (lower cost has higher priority)
@@ -71,7 +73,13 @@ class CBS {
     void onNewNode();
 };
 
+//struct to check agent state
 
+struct AgentState{
+    bool reachedGoal;
+};
+
+//will give a msg for checking 100 nodes.
 inline void CBS::onNewNode() {
     cnt++;
     if (cnt % 100 == 0) std::cout << "Checked " << cnt << " nodes.\n";
@@ -88,9 +96,9 @@ inline bool CTNode::checkForEdgeConflict(const std::vector<GridPoint>& pathOfOne
     // && pathOfOneAgent[i] != pathOfOneAgent[i + 1]); // Avoid self-loop
 }
 
-
+//getting first conflict
 inline Conflict CTNode::getFirstConflict() {
-    Conflict con(-1, -1, GridPoint(-1, -1), -1);
+    Conflict con(-1, -1, GridPoint(-1, -1,Direction::Down), -1);
     std::vector<int> lengths;
     lengths.resize(solution.size());
     std::transform(
@@ -133,6 +141,7 @@ inline Conflict CTNode::getFirstConflict() {
 
     return con;
 }
+
 
 inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
     // split current node into two nodes
@@ -189,6 +198,7 @@ void CBS::search() {
 
     std::vector<Constraint> cc;
     std::vector<GridPoint> pp;
+    std::vector<AgentState> agentStates(numberOfAgents,{false});
 
     root->costs.resize(numberOfAgents);
     for (int i = 0; i < numberOfAgents; i++) {
@@ -206,13 +216,23 @@ void CBS::search() {
     std::priority_queue<std::shared_ptr<CTNode>, std::vector<std::shared_ptr<CTNode>>, CompareCTNode> openSet;
     openSet.push(root);
 
-    Conflict conflict(-1, -1, GridPoint(-1, -1), -1);
+    Conflict conflict(-1, -1, GridPoint(-1, -1,Direction::Up), -1);
     while (!openSet.empty()) {
         std::shared_ptr<CTNode> currentCTNode = openSet.top();
         openSet.pop();
         onNewNode();
 
         conflict = currentCTNode->getFirstConflict();
+
+        for(int agentIndex = 0; agentIndex < numberOfAgents; ++agentIndex){
+            if(conflict.agent1 == -1 || conflict.agent2 == -1) continue;
+
+            const GridPoint& goal = goals[agentIndex];
+            if(currentCTNode->solution[agentIndex].back() == goal && !agentStates[agentIndex].reachedGoal){
+                agentStates[agentIndex].reachedGoal = true;
+                obstacles.push_back(goal);
+            }
+        }
 
         if (conflict.agent1 == -1 || conflict.agent2 == -1) {
             solutionNode = currentCTNode;

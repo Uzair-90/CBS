@@ -8,21 +8,21 @@ int main() {
   int dim_y = 3; // Grid dimension (Y)
 
   std::vector<GridPoint> obstacles;
-  obstacles.push_back(GridPoint(-1, -1));
+  obstacles.push_back(GridPoint(-1, -1,Direction::Up));
 
   std::vector<GridPoint> starts;
-  starts.push_back(GridPoint(2, 2));
-  starts.push_back(GridPoint(2, 1));
-  starts.push_back(GridPoint(0, 2));
-  starts.push_back(GridPoint(1, 1));
- // starts.push_back(GridPoint(0, 0));
+  starts.push_back(GridPoint(0, 0, Direction::Left));
+  starts.push_back(GridPoint(2, 1, Direction::Down));
+  starts.push_back(GridPoint(0, 1, Direction::Down));
+  starts.push_back(GridPoint(1, 1, Direction::Left));
+  // starts.push_back(GridPoint(0, 0));
 
   std::vector<GridPoint> goals;
-  goals.push_back(GridPoint(1, 0));
-  goals.push_back(GridPoint(1, 2));
-  goals.push_back(GridPoint(0, 1));
-  goals.push_back(GridPoint(0, 2));
- // goals.push_back(GridPoint(2, 1));
+  goals.push_back(GridPoint(2, 0, Direction::Left));
+  goals.push_back(GridPoint(0, 0, Direction::Down));
+  goals.push_back(GridPoint(2, 2, Direction::Right));
+  goals.push_back(GridPoint(0, 2, Direction::Down));
+  // goals.push_back(GridPoint(1, 2));
 
   // Create a CBS instance
   CBS cbs(num_agents, dim_x, dim_y, obstacles, starts, goals);
