@@ -11,17 +11,17 @@ int main() {
   obstacles.push_back(GridPoint(-1, -1,Direction::Up));
 
   std::vector<GridPoint> starts;
-  starts.push_back(GridPoint(0, 1, Direction::Right));
+  //starts.push_back(GridPoint(0, 1, Direction::Right));
   starts.push_back(GridPoint(1, 0, Direction::Down));
   starts.push_back(GridPoint(2, 0, Direction::Down));
-  //starts.push_back(GridPoint(1, 1, Direction::Left));
+  starts.push_back(GridPoint(1, 1, Direction::Left));
   // starts.push_back(GridPoint(0, 0));
 
   std::vector<GridPoint> goals;
-  goals.push_back(GridPoint(1, 1, Direction::Right));
+  //goals.push_back(GridPoint(1, 1, Direction::Right));
   goals.push_back(GridPoint(1, 2, Direction::Down));
   goals.push_back(GridPoint(0, 2, Direction::Left));
-  //goals.push_back(GridPoint(0, 2, Direction::Down));
+  goals.push_back(GridPoint(2, 2, Direction::Down));
   // goals.push_back(GridPoint(1, 2));
 
   // Create a CBS instance
@@ -39,7 +39,7 @@ int main() {
     for (int agent = 0; agent < num_agents; ++agent) {
       std::cout << "Agent " << agent + 1 << " solution: ";
       for (const GridPoint& point : solutionNode->solution[agent]) {
-        std::cout << "(" << point.x << ", " << point.y<<", "<<point.direction<<") -> ";
+        std::cout << "(" << point.x << ", " << point.y<<", "<<point.direction <<") -> ";
       }
       std::cout << "Goal\n";
     }

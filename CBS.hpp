@@ -23,6 +23,8 @@ struct CTNode {
     std::vector<std::vector<GridPoint>> solution;
     Conflict getFirstConflict();
     bool checkForEdgeConflict(const std::vector<GridPoint>& pathOfOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent, int i);
+    bool checkStoppingConflict(const std::vector<GridPoint>& pathOfOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent);
+    bool checkFollowConflict(const std::vector<GridPoint>& pathofOneAgent, const std::vector<GridPoint>& pathofAnotherAgent, int i);
     std::shared_ptr<CTNode> leftChild, rightChild, parent;
     CTNode() = default;
     CTNode(Cost c, std::vector<Constraint> &con,
@@ -87,8 +89,38 @@ inline bool CTNode::checkForEdgeConflict(const std::vector<GridPoint>& pathOfOne
     }
 
     // Check if agents swap positions at time i
-    return (((pathOfOneAgent[i].x == pathOfAnotherAgent[i + 1].x) && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y ) && (pathOfOneAgent[i + 1].x == pathOfAnotherAgent[i].x) && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y)));
-    // && pathOfOneAgent[i] != pathOfOneAgent[i + 1]); // Avoid self-loop
+    return (((pathOfOneAgent[i].x == pathOfAnotherAgent[i + 1].x)
+     && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y )
+      && (pathOfOneAgent[i + 1].x == pathOfAnotherAgent[i].x)
+       && (pathOfOneAgent[i].y == pathOfAnotherAgent[i + 1].y)));
+}
+
+//checking whether a conflict is stopping conflict or not
+inline bool CTNode::checkStoppingConflict(const std::vector<GridPoint>& pathOfOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent) {
+    GridPoint stopPoint = pathOfOneAgent.back(); // Assume the last point is where the agent stops
+    int stopTime = pathOfOneAgent.size() + 1;
+
+    // Check if another agent tries to occupy the stopping point at the same time
+    for (int i = 0; i < pathOfAnotherAgent.size(); ++i) {
+        if (pathOfAnotherAgent[i].x == stopPoint.x && pathOfAnotherAgent[i].y == stopPoint.y && i == stopTime) {
+            return true;
+        }
+    }
+    return false;
+}
+
+inline bool CTNode::checkFollowConflict(const std::vector<GridPoint>& pathofOneAgent, const std::vector<GridPoint>& pathOfAnotherAgent, int i) {
+    if(i + 1 >= pathofOneAgent.size() || i + 1 >= pathOfAnotherAgent.size()){
+        //out of bounds
+        return false;
+    }
+
+    //checking if two agents follow each other without any space
+      return ((pathofOneAgent[i].x == pathOfAnotherAgent[i + 1].x) 
+      && (pathofOneAgent[i].y == pathOfAnotherAgent[i + 1].y) 
+      && (pathofOneAgent[i + 1].x == pathOfAnotherAgent[i].x)
+      && (pathofOneAgent[i + 1].y == pathOfAnotherAgent[i].y));
+
 }
 
 //getting first conflict
@@ -103,26 +135,32 @@ inline Conflict CTNode::getFirstConflict() {
     std::vector<GridPoint> pointsAtTimei;
     int longestLength = *std::max_element(lengths.begin(), lengths.end());
 
-        for (int i = 0; i < longestLength; i++) {
+    for (int agent1 = 0; agent1 < solution.size(); ++agent1) {
+        for (int agent2 = agent1 + 1; agent2 < solution.size(); ++agent2) {
+            if (checkStoppingConflict(solution[agent1], solution[agent2])) {
+                auto conflicte = solution[agent1].back();
+                std::cout << "Stopping Conflict detected: [ " << conflicte.x<< ", " << conflicte.y << " ]" << std::endl;
+                return Conflict(agent1, agent2, solution[agent1].back(), solution[agent1].size() + 1);
+            }
+        }
+    }
+
+    for (int i = 0; i < longestLength; i++) {
         // i is the timeStamp
         pointsAtTimei.clear();
         int agent2 = -1;
 
         for (std::vector<GridPoint> pathOfOneAgent : solution) {
-                agent2++;
-                if (i < pathOfOneAgent.size()) {
-                    auto it=pointsAtTimei.begin();
-                    for(; it != pointsAtTimei.end(); it++) if(it->x == pathOfOneAgent[i].x && it->y == pathOfOneAgent[i].y) break;
+            agent2++;
+            if (i < pathOfOneAgent.size()) {
+                auto it=pointsAtTimei.begin();
+                for(; it != pointsAtTimei.end(); it++) if(it->x == pathOfOneAgent[i].x && it->y == pathOfOneAgent[i].y) break;
                     if(it == pointsAtTimei.end()){
-                        // no conflict
-                        std::cout << "NO CON" << std::endl;
-                        std::cout << "C " << pathOfOneAgent[i].x << " " << pathOfOneAgent[i].y << std::endl;
-                        for(auto tt:pointsAtTimei){
-                            std::cout << tt.x << " " << tt.y << " " << tt.direction << std::endl;
-                        }
-                    }else{
+                        //no conflict
+                        continue;
+                    } else {
                         int agent = it - pointsAtTimei.begin();
-                        std::cout << it->x << " " << it->y << std::endl;
+                        //std::cout << it->x << " " << it->y << std::endl;
                         return {agent, agent2, *it, i};
                     }
                     pointsAtTimei.push_back(pathOfOneAgent[i]);
@@ -130,15 +168,15 @@ inline Conflict CTNode::getFirstConflict() {
             }
         }
 
-        for (int i = 0; i < longestLength - 1; ++i) { // Check up to the second last position
-            for (int agent1 = 0; agent1 < solution.size(); ++agent1) {
-                for (int agent2 = agent1 + 1; agent2 < solution.size(); ++agent2) {
-                    if (checkForEdgeConflict(solution[agent1], solution[agent2], i)) {
-                        return Conflict(agent1, agent2, solution[agent1][i], i);
-                    }
+    for (int i = 0; i < longestLength - 1; ++i) { // Check up to the second last position
+        for (int agent1 = 0; agent1 < solution.size(); ++agent1) {
+            for (int agent2 = agent1 + 1; agent2 < solution.size(); ++agent2) {
+                if (checkForEdgeConflict(solution[agent1], solution[agent2], i)) {
+                    return Conflict(agent1, agent2, solution[agent1][i], i);
                 }
             }
         }
+    }
 
     return con;
 }
@@ -157,15 +195,16 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
     Constraint c2(agent2, conflictPoint, conflictTimeStamp);
     std::vector<Constraint> new1;
     std::vector<Constraint> new2;
-    // TODO: for each agent, maintain a constraint list
+    //creating a constraint list for each agent
     for (Constraint c : node->constraints)
         if (c.agent == agent1)
             new1.push_back(c);
         else if (c.agent == agent2)
             new2.push_back(c);
 
-    if (std::find(new1.begin(), new1.end(), c1) == new1.end()) {
 
+    if (std::find(new1.begin(), new1.end(), c1) == new1.end()) {
+        //std::cout << "I am here." << std::endl;
         new1.push_back(c1);
         auto newNode1 = std::make_shared<CTNode>(node->cost, new1,node->solution, node->costs);
         AStar lowLevelSearchObj1(dimX, dimY, obstacles, new1);
@@ -183,6 +222,8 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
         new2.push_back(c2);
         auto newNode2 = std::make_shared<CTNode>(node->cost, new2, node->solution, node->costs);
         AStar lowLevelSearchObj2(dimX, dimY, obstacles, newNode2->constraints);
+
+
         newNode2->solution[agent2] = lowLevelSearchObj2.search(starts[agent2], goals[agent2]);
         Cost cost2 = lowLevelSearchObj2.getFinalCost();
         newNode2->cost -= newNode2->costs[agent2];
@@ -190,6 +231,9 @@ inline void CBS::splitOnConflict(Conflict con, std::shared_ptr<CTNode>& node) {
         newNode2->costs[agent2] = cost2;
         node->rightChild = std::move(newNode2);
     }
+
+    std::cout << "Splitting on conflict between agent " << con.agent1 << " and agent " << con.agent2 << " at point (" << con.point.x << ", " << con.point.y << ") at time " << con.timeStamp << "\n";
+
 }
 
 void CBS::search() {
@@ -207,6 +251,8 @@ void CBS::search() {
         if (pp.empty()) {
             std::cout << "No solution returned from A*.\n";
             return;
+        } else {
+            std::cout << "A solution was returned!\n";
         }
         root->cost += lowLevelSearchObj.getFinalCost();
         root->costs[i] = lowLevelSearchObj.getFinalCost();
@@ -223,6 +269,9 @@ void CBS::search() {
         onNewNode();
 
         conflict = currentCTNode->getFirstConflict();
+        
+        std::cout << "The conflict is: " << std::endl;
+        std::cout << "[" << conflict.point.x << ", " << conflict.point.y << ", " << conflict.timeStamp << "]" << std::endl;
 
         if (conflict.agent1 == -1 || conflict.agent2 == -1) {
             solutionNode = currentCTNode;
